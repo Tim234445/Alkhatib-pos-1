@@ -111,7 +111,6 @@
     const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSzYRMUtZRPznTdbguLz8PLDOGurW3HSNg-Kp-VCnMm8zsjgug2xK8a6JEUSt16WpNWpA6WlZYPgvhE/pub?gid=1136409100&single=true&output=csv';
 
     window.onload = function() {
-        // استخدام بروكسي بديل ومستقر تماماً لجلب بيانات الجدول
         const reliableProxy = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(csvUrl);
         
         fetch(reliableProxy)
@@ -121,13 +120,12 @@
             })
             .then(data => {
                 parseCSV(data);
-                document.getElementById('statusMsg').innerText = "✔️ متصل بجدول بضائع المحل بنجاح";
+                document.getElementById('statusMsg').innerText = "✔️ متصل بجدول بضائع المحل بنجاح (" + Object.keys(productsDatabase).length + " مادة)";
                 document.getElementById('statusMsg').style.color = "#059669";
             })
             .catch(err => {
-                // وضع احتياطي للطوارئ لضمان عمل الكاشير فوراً
-                document.getElementById('statusMsg').innerText = "✔️ يعمل بنجاح (وضع المتجر النشط)";
-                document.getElementById('statusMsg').style.color = "#2563eb";
+                document.getElementById('statusMsg').innerText = "⚠️ تعذر جلب الجدول، تحقق من الشبكة";
+                document.getElementById('statusMsg').style.color = "#dc2626";
             });
     };
 
@@ -138,10 +136,12 @@
             if (cols.length >= 5) {
                 const barcode = cols[0] ? cols[0].trim().replace(/"/g, '') : '';
                 const name = cols[1] ? cols[1].trim().replace(/"/g, '') : '';
-                const price = cols[4] ? parseFloat(cols[4].trim().replace(/"/g, '')) : 0;
+                // العمود الخامس (E) هو سعر المبيع بالليرة
+                let priceStr = cols[4] ? cols[4].trim().replace(/"/g, '').replace(/,/g, '') : '0';
+                const price = parseFloat(priceStr) || 0;
                 
                 if (barcode) {
-                    productsDatabase[barcode] = { barcode: barcode, name: name, price: isNaN(price) ? 0 : price };
+                    productsDatabase[barcode] = { barcode: barcode, name: name, price: price };
                 }
             }
         }
