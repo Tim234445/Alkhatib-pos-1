@@ -101,7 +101,7 @@
             <button class="btn btn-cancel" onclick="cancelOrder()">إلغاء ✖</button>
         </div>
 
-        <div class="status-footer" id="statusMsg">جاري جلب الأسعار من الجدول الحي...</div>
+        <div class="status-footer" id="statusMsg">جاري الاتصال وتحليل الجدول...</div>
     </div>
 </div>
 
@@ -117,11 +117,17 @@
             .then(response => response.text())
             .then(data => {
                 parseCSV(data);
-                document.getElementById('statusMsg').innerText = "✔️ متصل بجدول بضائع المحل بنجاح (" + Object.keys(productsDatabase).length + " مادة)";
-                document.getElementById('statusMsg').style.color = "#059669";
+                let count = Object.keys(productsDatabase).length;
+                if(count > 0) {
+                    document.getElementById('statusMsg').innerText = "✔️ متصل بجدول المحل بنجاح (" + count + " مادة مسجلة)";
+                    document.getElementById('statusMsg').style.color = "#059669";
+                } else {
+                    document.getElementById('statusMsg').innerText = "⚠️ تم الاتصال ولكن لمש العثور على مواد، تحقق من أعمدة الجدول";
+                    document.getElementById('statusMsg').style.color = "#d97706";
+                }
             })
             .catch(err => {
-                document.getElementById('statusMsg').innerText = "⚠️ تعذر جلب الأسعار، تحقق من الاتصال";
+                document.getElementById('statusMsg').innerText = "⚠️ تعذر الاتصال بالجدول، تحقق من الشبكة";
                 document.getElementById('statusMsg').style.color = "#dc2626";
             });
     };
@@ -129,24 +135,35 @@
     function parseCSV(text) {
         const rows = text.split('\n');
         for (let i = 1; i < rows.length; i++) {
-            const cols = rows[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+            const row = rows[i].trim();
+            if(!row) continue;
+            
+            const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
             if (cols.length >= 2) {
-                const barcode = cols[0] ? cols[0].trim().replace(/"/g, '') : '';
-                const name = cols[1] ? cols[1].trim().replace(/"/g, '') : '';
+                const barcode = cols[0] ? cols[0].trim().replace(/^["']|["']$/g, '') : '';
+                const name = cols[1] ? cols[1].trim().replace(/^["']|["']$/g, '') : '';
                 
-                // البحث الذكي عن السعر في الأعمدة (العمود E هو الفهرس 4 أو أي عمود يحتوي على سعر رقمي)
+                // البحث في الأعمدة عن أي رقم يمكن اعتباره سعراً (يفضل العمود الخامس E أو ما يليه)
                 let price = 0;
-                for (let j = 2; j < cols.length; j++) {
-                    let val = parseFloat(cols[j].trim().replace(/"/g, '').replace(/,/g, ''));
-                    // إذا وجدنا رقماً أكبر من صفر ويعتبر سعراً معقولاً
-                    if (!isNaN(val) && val > 0) {
-                        price = val;
-                        break; // نأخذ أول سعر صالح نجده في أعمدة السطر
+                // فحص العمود الخامس تحديداً (index 4)
+                if (cols.length > 4 && cols[4]) {
+                    let p = parseFloat(cols[4].trim().replace(/^["']|["']$/g, '').replace(/,/g, ''));
+                    if (!isNaN(p)) price = p;
+                }
+                
+                // إذا لم يوجد في العمود الخامس، نبحث في أي عمود آخر
+                if (price === 0) {
+                    for (let j = 2; j < cols.length; j++) {
+                        let p = parseFloat(cols[j].trim().replace(/^["']|["']$/g, '').replace(/,/g, ''));
+                        if (!isNaN(p) && p > 0) {
+                            price = p;
+                            break;
+                        }
                     }
                 }
                 
-                if (barcode) {
-                    productsDatabase[barcode] = { barcode: barcode, name: name, price: price };
+                if (barcode && barcode !== "رقم الباركود") {
+                    productsDatabase[barcode] = { barcode: barcode, name: name || "مادة بدون اسم", price: price };
                 }
             }
         }
