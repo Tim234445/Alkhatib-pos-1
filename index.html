@@ -101,7 +101,7 @@
             <button class="btn btn-cancel" onclick="cancelOrder()">إلغاء ✖</button>
         </div>
 
-        <div class="status-footer" id="statusMsg">جاري الاتصال بـ Google Sheets...</div>
+        <div class="status-footer" id="statusMsg">جاري جلب الأسعار من الجدول الحي...</div>
     </div>
 </div>
 
@@ -114,17 +114,14 @@
         const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(csvUrl);
         
         fetch(proxyUrl)
-            .then(response => {
-                if (!response.ok) throw new Error('Network error');
-                return response.text();
-            })
+            .then(response => response.text())
             .then(data => {
                 parseCSV(data);
                 document.getElementById('statusMsg').innerText = "✔️ متصل بجدول بضائع المحل بنجاح (" + Object.keys(productsDatabase).length + " مادة)";
                 document.getElementById('statusMsg').style.color = "#059669";
             })
             .catch(err => {
-                document.getElementById('statusMsg').innerText = "⚠️ تعذر الاتصال بجدول الإنترنت، تأكد من الشبكة";
+                document.getElementById('statusMsg').innerText = "⚠️ تعذر جلب الأسعار، تحقق من الاتصال";
                 document.getElementById('statusMsg').style.color = "#dc2626";
             });
     };
@@ -133,11 +130,20 @@
         const rows = text.split('\n');
         for (let i = 1; i < rows.length; i++) {
             const cols = rows[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-            if (cols.length >= 5) {
+            if (cols.length >= 2) {
                 const barcode = cols[0] ? cols[0].trim().replace(/"/g, '') : '';
                 const name = cols[1] ? cols[1].trim().replace(/"/g, '') : '';
-                const priceStr = cols[4] ? cols[4].trim().replace(/"/g, '').replace(/,/g, '') : '0';
-                const price = parseFloat(priceStr) || 0;
+                
+                // البحث الذكي عن السعر في الأعمدة (العمود E هو الفهرس 4 أو أي عمود يحتوي على سعر رقمي)
+                let price = 0;
+                for (let j = 2; j < cols.length; j++) {
+                    let val = parseFloat(cols[j].trim().replace(/"/g, '').replace(/,/g, ''));
+                    // إذا وجدنا رقماً أكبر من صفر ويعتبر سعراً معقولاً
+                    if (!isNaN(val) && val > 0) {
+                        price = val;
+                        break; // نأخذ أول سعر صالح نجده في أعمدة السطر
+                    }
+                }
                 
                 if (barcode) {
                     productsDatabase[barcode] = { barcode: barcode, name: name, price: price };
